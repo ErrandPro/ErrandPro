@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lenwell Courier Service</title>
-    <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     <style>
         body {
@@ -17,13 +15,13 @@
         .form-container {
             max-width: 500px;
             margin: auto;
-            background-color: #1a2a44; /* Navy blue form background */
+            background-color: #1a2a44;
             padding: 25px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
         h1 {
-            color: #ffffff; /* White text for contrast */
+            color: #ffffff;
             text-align: center;
             margin-bottom: 10px;
         }
@@ -38,19 +36,19 @@
             border-radius: 4px;
             box-sizing: border-box;
             font-size: 14px;
-            background-color: #ffffff; /* White input bg for readability */
+            background-color: #ffffff;
         }
         .input-group i {
             position: absolute;
             left: 10px;
             top: 50%;
             transform: translateY(-50%);
-            color: #bdc3c7; /* Light gray icons */
+            color: #bdc3c7;
         }
         button {
-            width: 100%;
+            width: 48%;
             padding: 12px;
-            margin: 10px 0;
+            margin: 5px 1%;
             background-color: #e74c3c;
             color: white;
             border: none;
@@ -65,13 +63,13 @@
             margin-right: 5px;
         }
         p {
-            color: #bdc3c7; /* Light gray text for contrast */
+            color: #bdc3c7;
             font-size: 14px;
             text-align: center;
         }
-        #costOutput {
+        #costOutput, #orderConfirmation {
             font-weight: bold;
-            color: #27ae60; /* Green still pops */
+            color: #27ae60;
             text-align: center;
         }
     </style>
@@ -112,29 +110,83 @@
                 <textarea id="notes" placeholder="Additional Notes"></textarea>
             </div>
             <button type="button" onclick="calculateCost()">
-                <i class="fas fa-calculator"></i> Get Cost Estimate
+                <i class="fas fa-calculator"></i> Get Cost
+            </button>
+            <button type="button" onclick="submitOrder()">
+                <i class="fas fa-paper-plane"></i> Submit & Pay
             </button>
         </form>
         <p id="costOutput"></p>
+        <p id="orderConfirmation"></p>
         <p>Mobile Money: 0786869125</p>
     </div>
 
+    <!-- Pesapal JavaScript SDK -->
+    <script src="https://pesapal.com/js/pesapal.js"></script>
     <script>
+        let latestCost = 0;
+
         function calculateCost() {
             let pickup = document.getElementById("pickup").value;
             let dropoff = document.getElementById("dropoff").value;
             let task = document.getElementById("task").value;
 
-            // Simple cost: UGX 1000 base + UGX 1500 per "kilometre"
             let baseCost = 1000;
-            let distance = 1500; // Placeholder
+            let distance = 1500;
             let totalCost = baseCost + distance;
+            latestCost = totalCost;
 
             document.getElementById("costOutput").innerHTML = 
-                `Estimated Cost: UGX ${totalCost.toFixed(2)}<br>Please send payment to proceed.`;
+                `Estimated Cost: UGX ${totalCost.toFixed(2)}`;
+            document.getElementById("orderConfirmation").innerHTML = "";
         }
 
-        // Register service worker for PWA
+        function submitOrder() {
+            let name = document.getElementById("name").value;
+            let phone = document.getElementById("phone").value;
+            let pickup = document.getElementById("pickup").value;
+            let dropoff = document.getElementById("dropoff").value;
+            let task = document.getElementById("task").value;
+            let notes = document.getElementById("notes").value;
+
+            if (!latestCost) {
+                document.getElementById("orderConfirmation").innerHTML = 
+                    "Please calculate cost first!";
+                return;
+            }
+
+            // Pesapal Payment Modal
+            PesapalPay({
+                consumer_key: "YOUR_PESAPAL_CONSUMER_KEY", // Replace with your Pesapal Consumer Key
+                amount: latestCost,
+                currency: "UGX",
+                description: "Lenwell Errand Service Payment",
+                first_name: name,
+                phone_number: phone,
+                email: phone + "@lenwell.com", // Temp email since no email field (Pesapal may require it)
+                order_id: "LENWELL_" + Date.now(), // Unique order ID
+                callback: function(response) {
+                    if (response.status === "COMPLETED") {
+                        let formUrl = "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform?" +
+                            "entry.123456789=" + encodeURIComponent(name) +
+                            "&entry.987654321=" + encodeURIComponent(phone) +
+                            "&entry.456789123=" + encodeURIComponent(pickup) +
+                            "&entry.321654987=" + encodeURIComponent(dropoff) +
+                            "&entry.789123456=" + encodeURIComponent(task) +
+                            "&entry.654321789=" + encodeURIComponent(notes) +
+                            "&entry.147258369=" + encodeURIComponent(latestCost) +
+                            "&entry.258369147=" + encodeURIComponent(response.tracking_id); // Optional: log Pesapal transaction ID
+                        window.location.href = formUrl;
+                        document.getElementById("orderConfirmation").innerHTML = 
+                            "Payment successful! Redirecting...";
+                    } else {
+                        document.getElementById("orderConfirmation").innerHTML = 
+                            "Payment failed: " + response.message;
+                    }
+                }
+            });
+        }
+
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
                 navigator.serviceWorker.register("sw.js")
